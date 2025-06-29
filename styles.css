@@ -1,0 +1,42 @@
+/* Base layout & orientation lock */
+body {
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  touch-action: none;
+  background: radial-gradient(#1b0038, #03050a);
+  font: 24px "Courier New", monospace;
+  color: #fff;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#ui {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  color: #fff;
+  text-shadow: 0 0 4px currentColor;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+#hp, #xp, #glitch {
+  padding: 2px;
+}
+
+#force-glitch {
+  position: fixed;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: none;
+  border: 1px solid #fff;
+  color: #fff;
+}
