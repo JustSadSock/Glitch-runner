@@ -79,6 +79,17 @@ function spawnGlitchBoss(){
   glitchCountdown = 10000; // 10s of FX
 }
 
+function glitchReward(){
+  if(Math.random()<0.5){
+    const g=randomGlyph();
+    g.broken=true;
+    addGlyph(g);
+  }else if(player.glyphs.length){
+    player.glyphs.splice(rand(player.glyphs.length),1);
+  }
+}
+
+
 function updateGlyphs(dt){
   const baseR = 32;
   player.glyphs.forEach((g,i)=>{
@@ -89,7 +100,7 @@ function updateGlyphs(dt){
     g.cd = (g.cd||0) - dt;
     if(g.cd<=0){
       fireBullet(gx,gy,g.angle,g.hue,g.level);
-      g.cd = 1000 / g.level;
+      g.cd = g.broken ? 0 : 1000 / g.level;
     }
   });
 }
@@ -126,6 +137,7 @@ function collisions(){
         if(e.hp<=0){
           loot.push({x:e.x,y:e.y,r:10,char:'✦',hue:e.hue,t:0});
           player.xp+=1;
+          if(e.boss) glitchReward();
         }
       }
     });
