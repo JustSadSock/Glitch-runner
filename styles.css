@@ -1,11 +1,11 @@
-/* Base layout & orientation lock */
+/* CRT + neon + glitch vibe */
 body {
   margin: 0;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
   touch-action: none;
-  background: radial-gradient(#1b0038, #03050a);
+  background: radial-gradient(circle at center, #1b0038, #03050a);
   font: 24px "Courier New", monospace;
   color: #fff;
 }
@@ -21,9 +21,9 @@ body {
   top: 0;
   left: 0;
   right: 0;
+  opacity: 0.2;
   color: #fff;
   text-shadow: 0 0 4px currentColor;
-  opacity: 0.8;
   pointer-events: none;
 }
 
