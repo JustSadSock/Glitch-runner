@@ -121,6 +121,8 @@ let glitchAudioCtx=null;
 let expectedDPS=10;
 let maxGlyphSlots=8;
 let penaltyFireRate=1;
+let glitchCount=0;
+let entropyScore=0;
 
 // helpers
 const rand = n => Math.floor(Math.random()*n);
@@ -238,6 +240,7 @@ function spawnGlitchBoss(){
   glitchCountdown = 10000; // 10s of FX
 }
 function startGlitchEvent(){
+  glitchCount++;
   if(glitchEventActive) return;
   glitchEventActive=true;
   glitchEventTimer=15000;
@@ -510,6 +513,7 @@ expectedDPS = expDPS;
 
 function update(dt){
   timeSurvived += dt/1000;
+entropyScore += difficultyScalar * dt / 1000;
   if(glitchEventActive){
     glitchEventTimer-=dt;
     if(player.dps<=expectedDPS*1.2){
@@ -610,6 +614,8 @@ function startGame(){
   camX=-width/2; camY=-height/2;
   player.x=camX+width/2; player.y=camY+height/2;
   player.hp=100;player.xp=0;playerLevel=1;
+  glitchCount=0;
+  entropyScore=0;
   joyX=joyY=0; stickEl.style.transform='translate(0,0)';
   enemies.length=0;bullets.length=0;loot.length=0;obstacles.length=0;
   for(const k in chunks) delete chunks[k];
@@ -640,7 +646,10 @@ function startGame(){
 
 function gameOver(){
   running=false;
-  finalStatsEl.textContent = `Time ${timeSurvived.toFixed(1)}s XP ${player.xp}`;
+  const glyphList = player.glyphs.map(g=>g.char.repeat(g.level)).join(' ');
+  const summary = `Time ${timeSurvived.toFixed(1)}s XP ${player.xp} Waves ${waveCount} Glitches ${glitchCount} Entropy ${entropyScore.toFixed(1)} Glyphs ${glyphList}`;
+  finalStatsEl.textContent = summary;
+  localStorage.setItem('lastSummary', summary);
   overEl.hidden=false;
 }
 
