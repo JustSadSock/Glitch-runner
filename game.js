@@ -82,6 +82,7 @@ const enemyTypes = [
   {char:'☠', type:'trailer'}
 ];
 const enemyChars = enemyTypes.map(e=>e.char);
+let savedGlyphPatterns = [];
 const noise = openSimplex(42);
 
 const chunkTypes = {
@@ -220,6 +221,15 @@ function spawnWave(){
     else {x=camX+width+20;y=camY+rand(height);}
     const cfg = enemyTypes[rand(enemyTypes.length)];
     alloc(enemies,{x,y,r:12,hp:20*difficultyScalar,char:cfg.char,hue:rand(360),type:cfg.type});
+  }
+  if(savedGlyphPatterns.length && Math.random()<0.3){
+    const side=rand(4);let x,y;
+    if(side===0){x=camX+rand(width);y=camY-20;}
+    else if(side===1){x=camX+rand(width);y=camY+height+20;}
+    else if(side===2){x=camX-20;y=camY+rand(height);}
+    else {x=camX+width+20;y=camY+rand(height);} 
+    const pattern=savedGlyphPatterns[rand(savedGlyphPatterns.length)]||[];
+    alloc(enemies,{x,y,r:14,hp:30*difficultyScalar,char:'Ξ',hue:200,type:'echo',glyphs:pattern.map(g=>({...g}))});
   }
   if(lavaHazard){
     for(let i=0;i<3;i++){
@@ -403,6 +413,21 @@ function updateEnemies(dt){
           e.trailCd = 300;
         }
         break;
+      case 'echo':
+        e.x += dx/len*dt*speed*0.6;
+        e.y += dy/len*dt*speed*0.6;
+        (e.glyphs||[]).forEach((g,i)=>{
+          g.angle = (g.angle||0) + dt*0.001;
+          const r=32+i*4;
+          const gx=e.x+Math.cos(g.angle)*r;
+          const gy=e.y+Math.sin(g.angle)*r;
+          g.cd=(g.cd||0)-dt;
+          if(g.cd<=0){
+            fireBullet(gx,gy,g.angle,g.hue,g.level||1);
+            g.cd=1000/(g.level||1);
+          }
+        });
+        break;
     }
     if(e.burn>0){ e.hp -= dt*0.005; e.burn-=dt; }
     if(e.slow>0) e.slow-=dt;
@@ -434,9 +459,12 @@ function collisions(){
         }
         b.dead=true;
         if(e.hp<=0){
-          alloc(loot,{x:e.x,y:e.y,r:10,char:e.char,hue:e.hue,t:0,level:1});
-          if(rareLoot && Math.random()<0.2){
-            alloc(loot,{x:e.x+rand(20)-10,y:e.y+rand(20)-10,r:10,char:'\u2726',hue:rand(360),t:0,level:2});
+          if(e.type==='echo') dropBrokenGlyph(e);
+          else {
+            alloc(loot,{x:e.x,y:e.y,r:10,char:e.char,hue:e.hue,t:0,level:1});
+            if(rareLoot && Math.random()<0.2){
+              alloc(loot,{x:e.x+rand(20)-10,y:e.y+rand(20)-10,r:10,char:'\u2726',hue:rand(360),t:0,level:2});
+            }
           }
           player.xp+=1;
           checkLevelUp();
@@ -476,8 +504,15 @@ function collisions(){
 
 function collectLoot(l){
   l.dead=true;
-  addGlyph({char:l.char,hue:l.hue,level:l.level||1});
+  addGlyph({char:l.char,hue:l.hue,level:l.level||1,broken:l.broken});
   checkLevelUp();
+}
+
+function dropBrokenGlyph(e){
+  if(!e.glyphs||!e.glyphs.length) return;
+  const g=e.glyphs[rand(e.glyphs.length)];
+  const ng={char:g.char,hue:g.hue,level:g.level||1,broken:true};
+  alloc(loot,{x:e.x,y:e.y,r:10,char:ng.char,hue:ng.hue,t:0,level:ng.level,broken:true});
 }
 
 function checkLevelUp(){
@@ -626,6 +661,8 @@ function startGame(){
   glyphsEl.textContent='';
   levelEl.textContent='LVL 1';
   running=true;
+  const stored = localStorage.getItem('savedGlyphs');
+  savedGlyphPatterns = stored ? JSON.parse(stored) : [];
   const p=localStorage.getItem("penalty");
   if(p){
     maxGlyphSlots=7;
@@ -650,6 +687,9 @@ function gameOver(){
   const summary = `Time ${timeSurvived.toFixed(1)}s XP ${player.xp} Waves ${waveCount} Glitches ${glitchCount} Entropy ${entropyScore.toFixed(1)} Glyphs ${glyphList}`;
   finalStatsEl.textContent = summary;
   localStorage.setItem('lastSummary', summary);
+  savedGlyphPatterns.push(player.glyphs.map(g=>({...g})));
+  localStorage.setItem('savedGlyphs', JSON.stringify(savedGlyphPatterns));
+  localStorage.setItem('lastStats', JSON.stringify({time:timeSurvived,xp:player.xp,waves:waveCount,glitches:glitchCount,entropy:entropyScore}));
   overEl.hidden=false;
 }
 
@@ -669,6 +709,14 @@ document.addEventListener('keydown',e=>{
   if(e.key===' ' && running) {
     loot.forEach(l=>{
       if(!l.dead && distSq(l,player)<400) collectLoot(l);
+    });
+  }
+  if(e.key==='h' && running){
+    enemies.forEach(en=>{
+      if(!en.dead && en.type==='echo' && distSq(en,player)<1600){
+        en.dead=true;
+        dropBrokenGlyph(en);
+      }
     });
   }
 });
