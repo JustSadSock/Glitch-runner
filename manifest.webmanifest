@@ -1,7 +1,7 @@
 {
   "name": "Glitch Runner",
   "short_name": "GlitchRunner",
-  "orientation": "portrait",
+  "orientation": "any",
   "display": "standalone",
   "start_url": ".",
   "background_color": "#000000",
