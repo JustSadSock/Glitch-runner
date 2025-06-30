@@ -22,6 +22,8 @@ const glitchBtn = document.getElementById('force-glitch');
 const rotateWarningEl = document.getElementById('rotate-warning');
 const joystickEl = document.getElementById('joystick');
 const stickEl = document.getElementById('stick');
+const waveEl = document.getElementById('wave');
+const staticEl = document.getElementById('static-overlay');
 const devMode = new URLSearchParams(location.search).get('dev') === '1';
 if (devMode) glitchBtn.hidden = false;
 
@@ -88,6 +90,11 @@ const obstacles = [];
 const chunks = {};
 
 let lastSpawn = 0;
+let spawnInterval = 6000;
+let waveCount = 0;
+let breakTimer = 0;
+let rareLoot = false;
+let lavaHazard = false;
 const xpForLevel = 10;
 let playerLevel = 1;
 let difficultyScalar = 1;
@@ -118,7 +125,7 @@ function getChunk(cx, cy){
     c = { type, color: cfg.color, obstacles: [] };
     for(let i=0;i<cfg.obstacleCount;i++){
       const o={x:cx*256+rand(256),y:cy*256+rand(256),r:16};
-      if(cfg.hazard) o.damage=1;
+      if(cfg.hazard || lavaHazard) o.damage=1;
       c.obstacles.push(o);
     }
     chunks[key]=c;
@@ -186,6 +193,7 @@ function fireBullet(x,y,angle,hue,level){
 }
 
 function spawnWave(){
+  waveCount++;
   const count = 4 + Math.round(difficultyScalar*2);
   for(let i=0;i<count;i++){
     const side = rand(4);
@@ -196,6 +204,18 @@ function spawnWave(){
     else {x=camX+width+20;y=camY+rand(height);}
     const cfg = enemyTypes[rand(enemyTypes.length)];
     alloc(enemies,{x,y,r:12,hp:20*difficultyScalar,char:cfg.char,hue:rand(360),type:cfg.type});
+  }
+  if(lavaHazard){
+    for(let i=0;i<3;i++){
+      const x=camX+rand(width);
+      const y=camY+rand(height);
+      obstacles.push({x,y,r:16,damage:1});
+    }
+  }
+  if(waveCount%10===0){
+    breakTimer=1000;
+    staticEl.style.display='block';
+    applyModifier();
   }
 }
 
@@ -211,6 +231,17 @@ function glitchReward(){
     addGlyph(g);
   }else if(player.glyphs.length){
     player.glyphs.splice(rand(player.glyphs.length),1);
+  }
+}
+
+function applyModifier(){
+  const m = rand(3);
+  if(m===0){
+    spawnInterval = Math.max(2000, spawnInterval-1000);
+  }else if(m===1){
+    rareLoot = true;
+  }else{
+    lavaHazard = true;
   }
 }
 
@@ -339,7 +370,10 @@ function collisions(){
         }
         b.dead=true;
         if(e.hp<=0){
-          alloc(loot,{x:e.x,y:e.y,r:10,char:e.char,hue:e.hue,t:0});
+          alloc(loot,{x:e.x,y:e.y,r:10,char:e.char,hue:e.hue,t:0,level:1});
+          if(rareLoot && Math.random()<0.2){
+            alloc(loot,{x:e.x+rand(20)-10,y:e.y+rand(20)-10,r:10,char:'\u2726',hue:rand(360),t:0,level:2});
+          }
           player.xp+=1;
           checkLevelUp();
           if(e.boss) glitchReward();
@@ -378,7 +412,7 @@ function collisions(){
 
 function collectLoot(l){
   l.dead=true;
-  addGlyph({char:l.char,hue:l.hue,level:1});
+  addGlyph({char:l.char,hue:l.hue,level:l.level||1});
   checkLevelUp();
 }
 
@@ -414,8 +448,13 @@ function calcDifficulty(dt){
 
 function update(dt){
   timeSurvived += dt/1000;
+  if(breakTimer>0){
+    breakTimer -= dt;
+    if(breakTimer<=0) staticEl.style.display='none';
+    return;
+  }
   lastSpawn += dt;
-  if(lastSpawn>6000){ spawnWave(); lastSpawn=0; }
+  if(lastSpawn>spawnInterval){ spawnWave(); lastSpawn=0; }
   const kx = (keys['ArrowRight']||keys['d']?1:0) - (keys['ArrowLeft']||keys['a']?1:0);
   const ky = (keys['ArrowDown']||keys['s']?1:0) - (keys['ArrowUp']||keys['w']?1:0);
   const moveX = clamp(kx + joyX,-1,1);
@@ -449,7 +488,7 @@ function drawBackground(){
       ctx.fillStyle = chunk.color;
       ctx.fillRect(sx,sy,256,256);
       chunk.obstacles.forEach(o=>{
-        ctx.fillStyle = chunk.type==='bug' ? '#800' : '#555';
+        ctx.fillStyle = (chunk.type==='bug' || o.damage) ? '#800' : '#555';
         ctx.fillText('#',o.x-camX,o.y-camY);
       });
     }
@@ -490,6 +529,7 @@ function loop(ts){
   glitchEl.textContent = glitchCountdown>0 ? 'GLITCH '+(glitchCountdown/1000).toFixed(1) : '';
   levelEl.textContent = 'LVL '+playerLevel;
   glyphsEl.textContent = player.glyphs.map(g=>g.char.repeat(g.level)).join(' ');
+  waveEl.textContent = 'WAVE '+waveCount;
   if(player.hp<=0) return gameOver();
   rafId = requestAnimationFrame(loop);
 }
@@ -504,6 +544,9 @@ function startGame(){
   enemies.length=0;bullets.length=0;loot.length=0;obstacles.length=0;
   for(const k in chunks) delete chunks[k];
   timeSurvived=0;glitchCountdown=0;lastSpawn=0;
+  spawnInterval=6000;waveCount=0;breakTimer=0;rareLoot=false;lavaHazard=false;
+  staticEl.style.display='none';
+  waveEl.textContent='WAVE 0';
   glyphsEl.textContent='';
   levelEl.textContent='LVL 1';
   running=true;
