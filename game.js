@@ -1,6 +1,7 @@
 // GLITCH RUNNER - simple portrait roguelike on pure canvas
 // mix of RU/EN comments, no frameworks
 import { openSimplex } from './noise.js';
+import { startMusic, stopMusic } from './audio.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -644,6 +645,7 @@ function loop(ts){
 }
 function startGame(){
   if(running) return;
+  stopMusic();
   startEl.hidden=true;
   overEl.hidden=true;
   camX=-width/2; camY=-height/2;
@@ -676,13 +678,15 @@ function startGame(){
   if(glitchAudioCtx){glitchAudioCtx.osc.stop();glitchAudioCtx.close();glitchAudioCtx=null;}
 
   glitchEventActive=false;
-
+  startMusic();
+  
   last=0;
   rafId=requestAnimationFrame(loop);
 }
 
 function gameOver(){
   running=false;
+  stopMusic();
   const glyphList = player.glyphs.map(g=>g.char.repeat(g.level)).join(' ');
   const summary = `Time ${timeSurvived.toFixed(1)}s XP ${player.xp} Waves ${waveCount} Glitches ${glitchCount} Entropy ${entropyScore.toFixed(1)} Glyphs ${glyphList}`;
   finalStatsEl.textContent = summary;
