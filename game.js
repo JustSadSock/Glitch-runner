@@ -64,7 +64,14 @@ window.addEventListener('orientationchange', checkOrientation);
 resize();
 
 // ==== game state =====
-const enemyChars = ['▲','■','◆','♥','☠'];
+const enemyTypes = [
+  {char:'▲', type:'stabber'},
+  {char:'■', type:'charger'},
+  {char:'◆', type:'orbiter'},
+  {char:'♥', type:'healer'},
+  {char:'☠', type:'trailer'}
+];
+const enemyChars = enemyTypes.map(e=>e.char);
 const noise = openSimplex(42);
 
 const player = { x: width/2, y: height/2, r: 12, hp: 100, xp: 0, speed: 0.3, glyphs: [] };
@@ -155,8 +162,8 @@ function spawnWave(){
     else if(side===1){x=camX+rand(width);y=camY+height+20;}
     else if(side===2){x=camX-20;y=camY+rand(height);}
     else {x=camX+width+20;y=camY+rand(height);}
-    const type = Math.random()<0.3 ? 'shooter' : (Math.random()<0.2 ? 'sine' : 'chaser');
-    alloc(enemies,{x,y,r:12,hp:20*difficultyScalar,char:enemyChars[rand(enemyChars.length)],hue:rand(360),type});
+    const cfg = enemyTypes[rand(enemyTypes.length)];
+    alloc(enemies,{x,y,r:12,hp:20*difficultyScalar,char:cfg.char,hue:rand(360),type:cfg.type});
   }
 }
 
@@ -195,6 +202,10 @@ function updateBullets(dt){
   bullets.forEach(b=>{
     b.x += b.dx*dt;
     b.y += b.dy*dt;
+    if(b.ttl!==undefined){
+      b.ttl -= dt;
+      if(b.ttl<=0) b.dead=true;
+    }
     if(b.x<camX-50||b.y<camY-50||b.x>camX+width+50||b.y>camY+height+50) b.dead=true;
   });
 }
@@ -206,22 +217,65 @@ function updateEnemies(dt){
     const dy = player.y - e.y;
     const len = Math.hypot(dx,dy)||1;
     const speed = (e.slow>0?0.05:0.1) * difficultyScalar;
-    if(e.type==='sine'){
-      e.phase = (e.phase||0) + dt*0.005;
-      const ang = Math.atan2(dy,dx) + Math.sin(e.phase)*0.5;
-      e.x += Math.cos(ang)*dt*speed;
-      e.y += Math.sin(ang)*dt*speed;
-    }else{
-      e.x += dx/len * dt*speed;
-      e.y += dy/len * dt*speed;
-    }
-    if(e.type==='shooter'){
-      e.cd = (e.cd||0) - dt;
-      if(e.cd<=0){
-        const ang = Math.atan2(dy,dx);
-        alloc(bullets,{x:e.x,y:e.y,dx:Math.cos(ang)*0.2,dy:Math.sin(ang)*0.2,r:4,hue:e.hue,damage:5,owner:'enemy'});
-        e.cd=2000;
-      }
+    switch(e.type){
+      case 'stabber':
+        e.cd = (e.cd||0) - dt;
+        if(e.dash>0){
+          e.dash -= dt;
+          e.x += Math.cos(e.dashAng)*dt*speed*4;
+          e.y += Math.sin(e.dashAng)*dt*speed*4;
+        }else{
+          e.x += dx/len*dt*speed;
+          e.y += dy/len*dt*speed;
+          if(e.cd<=0){
+            e.dashAng = Math.atan2(dy,dx);
+            e.dash = 150;
+            e.cd = 1000;
+          }
+        }
+        break;
+      case 'charger':
+        e.cd = (e.cd||1000) - dt;
+        if(e.dash>0){
+          e.dash -= dt;
+          e.x += Math.cos(e.dashAng)*dt*speed*6;
+          e.y += Math.sin(e.dashAng)*dt*speed*6;
+        }else{
+          e.x += dx/len*dt*speed*0.5;
+          e.y += dy/len*dt*speed*0.5;
+          if(e.cd<=0){
+            e.dashAng = Math.atan2(dy,dx);
+            e.dash = 300;
+            e.cd = 2000;
+          }
+        }
+        break;
+      case 'orbiter':
+        e.angle = (e.angle||Math.random()*Math.PI*2) + dt*0.002*difficultyScalar;
+        const radius = e.radius || (e.radius = 60 + rand(40));
+        e.x = player.x + Math.cos(e.angle)*radius;
+        e.y = player.y + Math.sin(e.angle)*radius;
+        break;
+      case 'healer':
+        e.x += dx/len*dt*speed*0.6;
+        e.y += dy/len*dt*speed*0.6;
+        e.cd = (e.cd||0) - dt;
+        if(e.cd<=0){
+          enemies.forEach(o=>{
+            if(o!==e && !o.dead && distSq(o,e)<2500) o.hp += 5;
+          });
+          e.cd = 3000;
+        }
+        break;
+      case 'trailer':
+        e.x += dx/len*dt*speed;
+        e.y += dy/len*dt*speed;
+        e.trailCd = (e.trailCd||0) - dt;
+        if(e.trailCd<=0){
+          alloc(bullets,{x:e.x,y:e.y,dx:0,dy:0,r:4,hue:e.hue,damage:5,owner:'enemy',ttl:1000});
+          e.trailCd = 300;
+        }
+        break;
     }
     if(e.burn>0){ e.hp -= dt*0.005; e.burn-=dt; }
     if(e.slow>0) e.slow-=dt;
@@ -253,7 +307,7 @@ function collisions(){
         }
         b.dead=true;
         if(e.hp<=0){
-          alloc(loot,{x:e.x,y:e.y,r:10,char:'✦',hue:e.hue,t:0});
+          alloc(loot,{x:e.x,y:e.y,r:10,char:e.char,hue:e.hue,t:0});
           player.xp+=1;
           checkLevelUp();
           if(e.boss) glitchReward();
@@ -288,7 +342,7 @@ function collisions(){
 
 function collectLoot(l){
   l.dead=true;
-  addGlyph(randomGlyph());
+  addGlyph({char:l.char,hue:l.hue,level:1});
   checkLevelUp();
 }
 
