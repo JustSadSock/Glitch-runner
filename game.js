@@ -74,6 +74,12 @@ const enemyTypes = [
 const enemyChars = enemyTypes.map(e=>e.char);
 const noise = openSimplex(42);
 
+const chunkTypes = {
+  street: { color:'#020814', obstacleCount:3 },
+  market: { color:'#042a1a', obstacleCount:8 },
+  bug:    { color:'#200012', obstacleCount:5, hazard:true }
+};
+
 const player = { x: width/2, y: height/2, r: 12, hp: 100, xp: 0, speed: 0.3, glyphs: [] };
 const enemies = [];
 const bullets = [];
@@ -104,16 +110,42 @@ function getChunk(cx, cy){
   const key = cx+','+cy;
   let c = chunks[key];
   if(!c){
-    const n = noise(cx*0.1, cy*0.1);
-    const base = Math.floor(20 + n*25);
-    c = { color: `rgb(${base},0,${base*2})`, obstacles: [] };
-    for(let i=0;i<5;i++){
-      c.obstacles.push({x:cx*256+rand(256),y:cy*256+rand(256),r:16});
+    const r = (noise(cx*0.1, cy*0.1)+1)/2;
+    let type = 'street';
+    if(r>0.7) type='bug';
+    else if(r>0.4) type='market';
+    const cfg = chunkTypes[type];
+    c = { type, color: cfg.color, obstacles: [] };
+    for(let i=0;i<cfg.obstacleCount;i++){
+      const o={x:cx*256+rand(256),y:cy*256+rand(256),r:16};
+      if(cfg.hazard) o.damage=1;
+      c.obstacles.push(o);
     }
     chunks[key]=c;
     obstacles.push(...c.obstacles);
   }
   return c;
+}
+
+function removeChunk(cx,cy){
+  const key=cx+','+cy;
+  const c=chunks[key];
+  if(c){
+    c.obstacles.forEach(o=>{
+      const idx=obstacles.indexOf(o);
+      if(idx!==-1) obstacles.splice(idx,1);
+    });
+    delete chunks[key];
+  }
+}
+
+function cleanupChunks(minX,maxX,minY,maxY){
+  for(const k in chunks){
+    const [cx,cy]=k.split(',').map(Number);
+    if(cx<minX||cx>maxX||cy<minY||cy>maxY){
+      removeChunk(cx,cy);
+    }
+  }
 }
 
 // simple object pool allocator
@@ -332,6 +364,10 @@ function collisions(){
       const ang = Math.atan2(player.y-o.y, player.x-o.x);
       player.x = o.x + Math.cos(ang)*(player.r+o.r);
       player.y = o.y + Math.sin(ang)*(player.r+o.r);
+      if(o.damage){
+        player.hp -= o.damage;
+        damageFlash = 200;
+      }
     }
   });
   loot.forEach(l=>{
@@ -413,11 +449,12 @@ function drawBackground(){
       ctx.fillStyle = chunk.color;
       ctx.fillRect(sx,sy,256,256);
       chunk.obstacles.forEach(o=>{
-        ctx.fillStyle='#555';
+        ctx.fillStyle = chunk.type==='bug' ? '#800' : '#555';
         ctx.fillText('#',o.x-camX,o.y-camY);
       });
     }
   }
+  cleanupChunks(startX-2,endX+2,startY-2,endY+2);
 }
 
 function render(){
