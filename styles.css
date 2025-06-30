@@ -27,7 +27,7 @@ body {
   pointer-events: none;
 }
 
-#hp, #xp, #glitch {
+#hp, #xp, #glitch, #wave {
   padding: 2px;
 }
 #level {
@@ -104,4 +104,23 @@ body {
   border-radius: 50%;
   background: rgba(255,255,255,0.3);
   transition: transform 0.1s;
+}
+
+#static-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAaTklEQVR4nD3aB7jW4xsH8AdtTaSSUKKt0CIhLaM9FJFEpCKFjCRNnQotK9GOVLSMlFBIkRIN0hIVUZGVyP/zvvd1/c91da639/39nue+v+t+fuec9PPPP5933nlXXXXVwoULFy1a1KBBgxUrVjz44IO1B3Wi1aEiHL2Q77/gqJz9+v8fv5vT4Me5wyWd2wXwMeCJwhaZGI0fwcYDpD2IwX5QN9HAKUChqw2WcL/KJIYSDR0bxB8gI1D1SkdFPN3GWR+ucCma/XKNygBBpS62shcx9TnN+27RRhwxFCDrFEdaNlWJ210QP9UUHqSrbFFGov8D9czYni0LlSkAAAAASUVORK5CYII=');
+  background-size: 200px 200px;
+  animation: staticmove 0.3s steps(6) infinite;
+  display: none;
+  opacity: 0.6;
+}
+
+@keyframes staticmove {
+  from { transform: translate(0,0); }
+  to { transform: translate(-50px,50px); }
 }
