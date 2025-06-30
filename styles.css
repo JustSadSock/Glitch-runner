@@ -75,3 +75,8 @@ body {
   text-shadow: 0 0 4px currentColor;
   pointer-events: auto;
 }
+
+#rotate-warning {
+  color: #fff;
+  text-align: center;
+}

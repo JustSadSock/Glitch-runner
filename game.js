@@ -19,11 +19,27 @@ const finalStatsEl = document.getElementById('final-stats');
 const restartBtn = document.getElementById('restart');
 const glyphsEl = document.getElementById('glyphs');
 const glitchBtn = document.getElementById('force-glitch');
+const rotateWarningEl = document.getElementById('rotate-warning');
 const devMode = new URLSearchParams(location.search).get('dev') === '1';
 if (devMode) glitchBtn.hidden = false;
+let orientationLockFailed = false;
 // try locking to portrait
 if (screen.orientation && screen.orientation.lock) {
-  screen.orientation.lock('portrait').catch(() => {});
+  screen.orientation.lock('portrait').catch(() => {
+    orientationLockFailed = true;
+    checkOrientation();
+  });
+} else {
+  orientationLockFailed = true;
+}
+
+function checkOrientation() {
+  if (!orientationLockFailed) return;
+  if (window.innerWidth > window.innerHeight) {
+    rotateWarningEl.hidden = false;
+  } else {
+    rotateWarningEl.hidden = true;
+  }
 }
 
 function resize() {
@@ -34,8 +50,10 @@ function resize() {
   canvas.style.width = width + 'px';
   canvas.style.height = height + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  checkOrientation();
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', checkOrientation);
 resize();
 
 // ==== game state =====
