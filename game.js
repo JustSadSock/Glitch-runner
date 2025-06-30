@@ -10,10 +10,15 @@ let width = 0, height = 0;
 // UI refs
 const hpEl = document.getElementById('hp');
 const xpEl = document.getElementById('xp');
+const xpBarEl = document.getElementById('xp-bar');
 const glitchEl = document.getElementById('glitch');
 const glitchBtn = document.getElementById('force-glitch');
 const devMode = new URLSearchParams(location.search).get('dev') === '1';
 if (devMode) glitchBtn.hidden = false;
+// try locking to portrait
+if (screen.orientation && screen.orientation.lock) {
+  screen.orientation.lock('portrait').catch(() => {});
+}
 
 function resize() {
   width = window.innerWidth;
@@ -37,6 +42,7 @@ const bullets = [];
 const loot = [];
 
 let lastSpawn = 0;
+const xpForLevel = 10;
 let difficultyScalar = 1;
 let timeSurvived = 0;
 let highDpsTime = 0;
@@ -191,11 +197,16 @@ function collectLoot(l){
   addGlyph(randomGlyph());
 }
 
+let diffTimer = 0;
 function calcDifficulty(dt){
+  diffTimer += dt;
   const expDPS = difficultyScalar*10;
   player.dps = player.glyphs.length*10;
-  const lowHP = player.hp<30?0.1:0;
-  difficultyScalar = clamp(0.8 + (player.dps/expDPS - 1)*0.5 - lowHP + timeSurvived/600*0.05,0.7,3);
+  if(diffTimer>=10000){
+    diffTimer=0;
+    const lowHP = player.hp<30?0.1:0;
+    difficultyScalar = clamp(0.8 + (player.dps/expDPS - 1)*0.5 - lowHP + timeSurvived/600*0.05,0.7,3);
+  }
   if(player.dps>1.4*expDPS){
     highDpsTime += dt;
     if(highDpsTime>60000 && glitchCountdown===0){
@@ -255,7 +266,8 @@ function loop(ts){
   update(dt);
   render();
   hpEl.textContent = 'HP '+Math.max(0,player.hp|0);
-  xpEl.textContent = 'XP '+player.xp;
+  const pct = (player.xp % xpForLevel)/xpForLevel*100;
+  if(xpBarEl) xpBarEl.style.width = pct+'%';
   glitchEl.textContent = glitchCountdown>0 ? 'GLITCH '+(glitchCountdown/1000).toFixed(1) : '';
   requestAnimationFrame(loop);
 }

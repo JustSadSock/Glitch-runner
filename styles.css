@@ -31,6 +31,19 @@ body {
   padding: 2px;
 }
 
+#xp {
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  position: relative;
+  width: 100%;
+}
+
+#xp-bar {
+  height: 100%;
+  width: 0%;
+  background: currentColor;
+}
+
 #force-glitch {
   position: fixed;
   bottom: 5px;
