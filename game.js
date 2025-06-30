@@ -101,6 +101,7 @@ const chunks = {};
 
 let lastSpawn = 0;
 let spawnInterval = 6000;
+let spawnDelayMult = 1; // dynamic delay multiplier based on FPS
 let waveCount = 0;
 let breakTimer = 0;
 let rareLoot = false;
@@ -125,6 +126,9 @@ let maxGlyphSlots=8;
 let penaltyFireRate=1;
 let glitchCount=0;
 let entropyScore=0;
+// adaptive performance tuning
+let avgDt = 16;
+let particleRateMult = 1;
 
 // helpers
 const rand = n => Math.floor(Math.random()*n);
@@ -331,7 +335,7 @@ function updateGlyphs(dt){
     g.cd = (g.cd||0) - dt;
     if(g.cd<=0){
       fireBullet(gx,gy,g.angle,g.hue,g.level);
-      g.cd = g.broken ? 0 : 1000 / g.level * penaltyFireRate;
+      g.cd = g.broken ? 0 : 1000 / g.level * penaltyFireRate * particleRateMult;
     }
   });
 }
@@ -411,7 +415,7 @@ function updateEnemies(dt){
         e.trailCd = (e.trailCd||0) - dt;
         if(e.trailCd<=0){
           alloc(bullets,{x:e.x,y:e.y,dx:0,dy:0,r:4,hue:e.hue,damage:5,owner:'enemy',ttl:1000});
-          e.trailCd = 300;
+          e.trailCd = 300 * particleRateMult;
         }
         break;
       case 'echo':
@@ -425,7 +429,7 @@ function updateEnemies(dt){
           g.cd=(g.cd||0)-dt;
           if(g.cd<=0){
             fireBullet(gx,gy,g.angle,g.hue,g.level||1);
-            g.cd=1000/(g.level||1);
+            g.cd=1000/(g.level||1) * particleRateMult;
           }
         });
         break;
@@ -564,7 +568,7 @@ entropyScore += difficultyScalar * dt / 1000;
     return;
   }
   lastSpawn += dt;
-  if(lastSpawn>spawnInterval){ spawnWave(); lastSpawn=0; }
+  if(lastSpawn>spawnInterval*spawnDelayMult){ spawnWave(); lastSpawn=0; }
   const kx = (keys['ArrowRight']||keys['d']?1:0) - (keys['ArrowLeft']||keys['a']?1:0);
   const ky = (keys['ArrowDown']||keys['s']?1:0) - (keys['ArrowUp']||keys['w']?1:0);
   const moveX = clamp(kx + joyX,-1,1);
@@ -631,6 +635,15 @@ function loop(ts){
   if(!last) last=ts;
   const dt = ts-last;
   last=ts;
+  avgDt = avgDt*0.9 + dt*0.1;
+  const fps = 1000/avgDt;
+  if(fps < 20){
+    particleRateMult = Math.min(2, particleRateMult + 0.05);
+    spawnDelayMult = Math.min(2, spawnDelayMult + 0.05);
+  }else if(fps > 25){
+    particleRateMult = Math.max(1, particleRateMult - 0.05);
+    spawnDelayMult = Math.max(1, spawnDelayMult - 0.05);
+  }
   update(dt);
   render();
   hpEl.textContent = 'HP '+Math.max(0,player.hp|0);
@@ -658,6 +671,7 @@ function startGame(){
   for(const k in chunks) delete chunks[k];
   timeSurvived=0;glitchCountdown=0;lastSpawn=0;
   spawnInterval=6000;waveCount=0;breakTimer=0;rareLoot=false;lavaHazard=false;
+  spawnDelayMult=1;particleRateMult=1;avgDt=16;
   staticEl.style.display='none';
   waveEl.textContent='WAVE 0';
   glyphsEl.textContent='';
