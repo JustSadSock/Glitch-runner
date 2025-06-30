@@ -12,6 +12,12 @@ const hpEl = document.getElementById('hp');
 const xpEl = document.getElementById('xp');
 const xpBarEl = document.getElementById('xp-bar');
 const glitchEl = document.getElementById('glitch');
+const levelEl = document.getElementById('level');
+const startEl = document.getElementById('start-screen');
+const overEl = document.getElementById('game-over');
+const finalStatsEl = document.getElementById('final-stats');
+const restartBtn = document.getElementById('restart');
+const glyphsEl = document.getElementById('glyphs');
 const glitchBtn = document.getElementById('force-glitch');
 const devMode = new URLSearchParams(location.search).get('dev') === '1';
 if (devMode) glitchBtn.hidden = false;
@@ -40,18 +46,41 @@ const player = { x: width/2, y: height/2, r: 12, hp: 100, xp: 0, speed: 0.3, gly
 const enemies = [];
 const bullets = [];
 const loot = [];
+const obstacles = [];
+const chunks = {};
 
 let lastSpawn = 0;
 const xpForLevel = 10;
+let playerLevel = 1;
 let difficultyScalar = 1;
 let timeSurvived = 0;
 let highDpsTime = 0;
 let glitchCountdown = 0;
+let running = false;
+let rafId = 0;
+let camX = 0, camY = 0;
+let damageFlash = 0;
 
 // helpers
 const rand = n => Math.floor(Math.random()*n);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const distSq = (a,b)=>{const dx=a.x-b.x,dy=a.y-b.y;return dx*dx+dy*dy};
+
+function getChunk(cx, cy){
+  const key = cx+','+cy;
+  let c = chunks[key];
+  if(!c){
+    const n = noise(cx*0.1, cy*0.1);
+    const base = Math.floor(20 + n*25);
+    c = { color: `rgb(${base},0,${base*2})`, obstacles: [] };
+    for(let i=0;i<5;i++){
+      c.obstacles.push({x:cx*256+rand(256),y:cy*256+rand(256),r:16});
+    }
+    chunks[key]=c;
+    obstacles.push(...c.obstacles);
+  }
+  return c;
+}
 
 // simple object pool allocator
 function alloc(pool, props){
@@ -95,16 +124,17 @@ function spawnWave(){
   for(let i=0;i<count;i++){
     const side = rand(4);
     let x,y;
-    if(side===0){x=rand(width);y=-20;}
-    else if(side===1){x=rand(width);y=height+20;}
-    else if(side===2){x=-20;y=rand(height);}
-    else {x=width+20;y=rand(height);}
-    alloc(enemies,{x,y,r:12,hp:20*difficultyScalar,char:enemyChars[rand(enemyChars.length)],hue:rand(360)});
+    if(side===0){x=camX+rand(width);y=camY-20;}
+    else if(side===1){x=camX+rand(width);y=camY+height+20;}
+    else if(side===2){x=camX-20;y=camY+rand(height);}
+    else {x=camX+width+20;y=camY+rand(height);}
+    const type = Math.random()<0.3 ? 'shooter' : (Math.random()<0.2 ? 'sine' : 'chaser');
+    alloc(enemies,{x,y,r:12,hp:20*difficultyScalar,char:enemyChars[rand(enemyChars.length)],hue:rand(360),type});
   }
 }
 
 function spawnGlitchBoss(){
-  alloc(enemies,{x:width/2,y:-40,r:24,hp:200,char:'Ω',hue:320,boss:true});
+  alloc(enemies,{x:camX+width/2,y:camY-40,r:24,hp:200,char:'Ω',hue:320,boss:true});
   glitchCountdown = 10000; // 10s of FX
 }
 
@@ -138,7 +168,7 @@ function updateBullets(dt){
   bullets.forEach(b=>{
     b.x += b.dx*dt;
     b.y += b.dy*dt;
-    if(b.x<-50||b.y<-50||b.x>width+50||b.y>height+50) b.dead=true;
+    if(b.x<camX-50||b.y<camY-50||b.x>camX+width+50||b.y>camY+height+50) b.dead=true;
   });
 }
 
@@ -149,8 +179,23 @@ function updateEnemies(dt){
     const dy = player.y - e.y;
     const len = Math.hypot(dx,dy)||1;
     const speed = (e.slow>0?0.05:0.1) * difficultyScalar;
-    e.x += dx/len * dt*speed;
-    e.y += dy/len * dt*speed;
+    if(e.type==='sine'){
+      e.phase = (e.phase||0) + dt*0.005;
+      const ang = Math.atan2(dy,dx) + Math.sin(e.phase)*0.5;
+      e.x += Math.cos(ang)*dt*speed;
+      e.y += Math.sin(ang)*dt*speed;
+    }else{
+      e.x += dx/len * dt*speed;
+      e.y += dy/len * dt*speed;
+    }
+    if(e.type==='shooter'){
+      e.cd = (e.cd||0) - dt;
+      if(e.cd<=0){
+        const ang = Math.atan2(dy,dx);
+        alloc(bullets,{x:e.x,y:e.y,dx:Math.cos(ang)*0.2,dy:Math.sin(ang)*0.2,r:4,hue:e.hue,damage:5,owner:'enemy'});
+        e.cd=2000;
+      }
+    }
     if(e.burn>0){ e.hp -= dt*0.005; e.burn-=dt; }
     if(e.slow>0) e.slow-=dt;
   });
@@ -161,6 +206,14 @@ function updateLoot(dt){ loot.forEach(l=>l.t+=dt); }
 function collisions(){
   bullets.forEach(b=>{
     if(b.dead) return;
+    if(b.owner==='enemy'){
+      if(distSq(b,player)<(b.r+player.r)**2){
+        player.hp-=b.damage;
+        damageFlash = 200;
+        b.dead=true;
+      }
+      return;
+    }
     enemies.forEach(e=>{
       if(e.dead) return;
       if(distSq(b,e)<(b.r+e.r)**2){
@@ -175,15 +228,29 @@ function collisions(){
         if(e.hp<=0){
           alloc(loot,{x:e.x,y:e.y,r:10,char:'✦',hue:e.hue,t:0});
           player.xp+=1;
+          checkLevelUp();
           if(e.boss) glitchReward();
         }
       }
+    });
+    obstacles.forEach(o=>{
+      if(b.dead) return;
+      if(distSq(b,o)<(b.r+o.r)**2) b.dead=true;
     });
   });
   enemies.forEach(e=>{
     if(e.dead) return;
     if(distSq(e,player)<(e.r+player.r)**2){
       player.hp-=0.05*difficultyScalar;
+      damageFlash = 200;
+    }
+  });
+  obstacles.forEach(o=>{
+    const d = Math.hypot(player.x-o.x, player.y-o.y);
+    if(d < player.r+o.r){
+      const ang = Math.atan2(player.y-o.y, player.x-o.x);
+      player.x = o.x + Math.cos(ang)*(player.r+o.r);
+      player.y = o.y + Math.sin(ang)*(player.r+o.r);
     }
   });
   loot.forEach(l=>{
@@ -195,6 +262,16 @@ function collisions(){
 function collectLoot(l){
   l.dead=true;
   addGlyph(randomGlyph());
+  checkLevelUp();
+}
+
+function checkLevelUp(){
+  const needed = playerLevel * xpForLevel;
+  if(player.xp >= needed){
+    playerLevel++;
+    player.hp += 10;
+    player.speed += 0.05;
+  }
 }
 
 let diffTimer = 0;
@@ -227,17 +304,29 @@ function update(dt){
   collisions();
   calcDifficulty(dt);
   if(glitchCountdown>0) glitchCountdown -= dt;
+  if(damageFlash>0) damageFlash -= dt;
+  camX = player.x - width/2;
+  camY = player.y - height/2;
 }
 
 function drawBackground(){
   ctx.fillStyle='#03050a';
   ctx.fillRect(0,0,width,height);
-  for(let x=0;x<width;x+=256){
-    for(let y=0;y<height;y+=256){
-      const n = noise(x*0.01,y*0.01);
-      const c = Math.floor(20 + n*25);
-      ctx.fillStyle=`rgb(${c},0,${c*2})`;
-      ctx.fillRect(x,y,256,256);
+  const startX = Math.floor(camX/256);
+  const endX = Math.floor((camX+width)/256);
+  const startY = Math.floor(camY/256);
+  const endY = Math.floor((camY+height)/256);
+  for(let cx=startX; cx<=endX; cx++){
+    for(let cy=startY; cy<=endY; cy++){
+      const chunk = getChunk(cx,cy);
+      const sx = cx*256 - camX;
+      const sy = cy*256 - camY;
+      ctx.fillStyle = chunk.color;
+      ctx.fillRect(sx,sy,256,256);
+      chunk.obstacles.forEach(o=>{
+        ctx.fillStyle='#555';
+        ctx.fillText('#',o.x-camX,o.y-camY);
+      });
     }
   }
 }
@@ -250,11 +339,15 @@ function render(){
     ctx.shadowBlur = 8;
   }
   drawBackground();
-  loot.forEach(l=>{ if(l.dead) return; ctx.fillStyle=`hsl(${l.hue},80%,${50+Math.sin(l.t/100)*30}%)`; ctx.fillText(l.char,l.x,l.y); });
-  bullets.forEach(b=>{ if(b.dead) return; ctx.fillStyle=`hsl(${b.hue},80%,70%)`; ctx.fillText('·',b.x,b.y); });
+  loot.forEach(l=>{ if(l.dead) return; ctx.fillStyle=`hsl(${l.hue},80%,${50+Math.sin(l.t/100)*30}%)`; ctx.fillText(l.char,l.x-camX,l.y-camY); });
+  bullets.forEach(b=>{ if(b.dead) return; ctx.fillStyle=`hsl(${b.hue},80%,70%)`; ctx.fillText('·',b.x-camX,b.y-camY); });
   ctx.fillStyle='#fff';
-  ctx.fillText('●',player.x,player.y);
-  enemies.forEach(e=>{ if(e.dead) return; ctx.fillStyle=`hsl(${e.hue},80%,60%)`; ctx.fillText(e.char,e.x,e.y); });
+  ctx.fillText('●',player.x-camX,player.y-camY);
+  enemies.forEach(e=>{ if(e.dead) return; ctx.fillStyle=`hsl(${e.hue},80%,60%)`; ctx.fillText(e.char,e.x-camX,e.y-camY); });
+  if(damageFlash>0){
+    ctx.fillStyle=`rgba(255,0,0,${damageFlash/200})`;
+    ctx.fillRect(0,0,width,height);
+  }
   if(glitchCountdown>0) ctx.restore();
 }
 
@@ -269,9 +362,31 @@ function loop(ts){
   const pct = (player.xp % xpForLevel)/xpForLevel*100;
   if(xpBarEl) xpBarEl.style.width = pct+'%';
   glitchEl.textContent = glitchCountdown>0 ? 'GLITCH '+(glitchCountdown/1000).toFixed(1) : '';
-  requestAnimationFrame(loop);
+  levelEl.textContent = 'LVL '+playerLevel;
+  glyphsEl.textContent = player.glyphs.map(g=>g.char.repeat(g.level)).join(' ');
+  if(player.hp<=0) return gameOver();
+  rafId = requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+function startGame(){
+  if(running) return;
+  startEl.hidden=true;
+  overEl.hidden=true;
+  player.x=0;player.y=0;player.hp=100;player.xp=0;playerLevel=1;
+  enemies.length=0;bullets.length=0;loot.length=0;obstacles.length=0;
+  for(const k in chunks) delete chunks[k];
+  timeSurvived=0;glitchCountdown=0;lastSpawn=0;
+  glyphsEl.textContent='';
+  levelEl.textContent='LVL 1';
+  running=true;
+  last=0;
+  rafId=requestAnimationFrame(loop);
+}
+
+function gameOver(){
+  running=false;
+  finalStatsEl.textContent = `Time ${timeSurvived.toFixed(1)}s XP ${player.xp}`;
+  overEl.hidden=false;
+}
 
 // touch controls: swipe move, tap loot
 let touchStart=null;
@@ -295,3 +410,18 @@ canvas.addEventListener('touchend',e=>{
 });
 
 glitchBtn.addEventListener('click',spawnGlitchBoss);
+startEl.addEventListener('click',startGame);
+restartBtn.addEventListener('click',startGame);
+
+document.addEventListener('keydown',e=>{
+  const step = player.speed*100;
+  if(e.key==='ArrowUp'||e.key==='w') player.y-=step;
+  if(e.key==='ArrowDown'||e.key==='s') player.y+=step;
+  if(e.key==='ArrowLeft'||e.key==='a') player.x-=step;
+  if(e.key==='ArrowRight'||e.key==='d') player.x+=step;
+  if(e.key==='Enter' && !running) startGame();
+});
+
+canvas.addEventListener('click',e=>{
+  loot.forEach(l=>{ if(!l.dead && distSq(l,{x:e.clientX+camX,y:e.clientY+camY})<400){ collectLoot(l); } });
+});
