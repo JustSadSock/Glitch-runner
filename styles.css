@@ -124,3 +124,7 @@ body {
   from { transform: translate(0,0); }
   to { transform: translate(-50px,50px); }
 }
+
+@keyframes glitchHue { from { filter: invert(1) hue-rotate(0deg); } to { filter: invert(1) hue-rotate(360deg); } }
+body.glitch-event { animation: glitchHue 0.3s steps(2) infinite; }
+
