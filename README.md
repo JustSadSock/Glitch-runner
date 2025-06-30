@@ -2,6 +2,8 @@
 
 GLITCH RUNNER is a portrait-orientated top-down roguelike auto-shooter built with vanilla JavaScript. The project runs entirely from static files and targets mobile browsers.
 
+Although optimized for phones, the game now also works in desktop browsers without requiring portrait mode.
+
 ## Setup
 
 Clone this repository and open `index.html` in your browser. No build steps or additional dependencies are needed.

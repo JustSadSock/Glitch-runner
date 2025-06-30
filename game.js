@@ -25,7 +25,10 @@ const joystickEl = document.getElementById('joystick');
 const stickEl = document.getElementById('stick');
 const waveEl = document.getElementById('wave');
 const staticEl = document.getElementById('static-overlay');
-const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+// detect mobile more conservatively to avoid false positives on desktop
+const hasTouch = navigator.maxTouchPoints > 1;
+const smallScreen = Math.max(screen.width, screen.height) <= 820;
+const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (hasTouch && smallScreen);
 const devMode = new URLSearchParams(location.search).get('dev') === '1';
 if (devMode) glitchBtn.hidden = false;
 if (!isMobile) joystickEl.style.display = 'none';
