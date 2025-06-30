@@ -47,6 +47,21 @@ const rand = n => Math.floor(Math.random()*n);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const distSq = (a,b)=>{const dx=a.x-b.x,dy=a.y-b.y;return dx*dx+dy*dy};
 
+// simple object pool allocator
+function alloc(pool, props){
+  const obj = pool.find(o=>o.dead) || {};
+  Object.assign(obj, props, {dead:false});
+  if(!pool.includes(obj)) pool.push(obj);
+  return obj;
+}
+
+function elementFromHue(h){
+  h = (h % 360 + 360) % 360;
+  if(h < 60 || h >= 300) return 'fire';
+  if(h < 180) return 'chain';
+  return 'slow';
+}
+
 function randomGlyph() {
   return { char: enemyChars[rand(enemyChars.length)], hue: rand(360), level:1 };
 }
@@ -58,7 +73,15 @@ function addGlyph(g) {
 }
 
 function fireBullet(x,y,angle,hue,level){
-  bullets.push({x,y,dx:Math.cos(angle)*0.4,dy:Math.sin(angle)*0.4,r:4,hue,damage:5*level});
+  alloc(bullets,{
+    x,y,
+    dx:Math.cos(angle)*0.4,
+    dy:Math.sin(angle)*0.4,
+    r:4,
+    hue,
+    damage:5*level,
+    element:elementFromHue(hue)
+  });
 }
 
 function spawnWave(){
@@ -68,14 +91,14 @@ function spawnWave(){
     let x,y;
     if(side===0){x=rand(width);y=-20;}
     else if(side===1){x=rand(width);y=height+20;}
-    else if(side===2){x=-20;y=rand(height);} 
-    else {x=width+20;y=rand(height);} 
-    enemies.push({x,y,r:12,hp:20*difficultyScalar,char:enemyChars[rand(enemyChars.length)],hue:rand(360)});
+    else if(side===2){x=-20;y=rand(height);}
+    else {x=width+20;y=rand(height);}
+    alloc(enemies,{x,y,r:12,hp:20*difficultyScalar,char:enemyChars[rand(enemyChars.length)],hue:rand(360)});
   }
 }
 
 function spawnGlitchBoss(){
-  enemies.push({x:width/2,y:-40,r:24,hp:200,char:'Ω',hue:320,boss:true});
+  alloc(enemies,{x:width/2,y:-40,r:24,hp:200,char:'Ω',hue:320,boss:true});
   glitchCountdown = 10000; // 10s of FX
 }
 
@@ -119,8 +142,11 @@ function updateEnemies(dt){
     const dx = player.x - e.x;
     const dy = player.y - e.y;
     const len = Math.hypot(dx,dy)||1;
-    e.x += dx/len * dt*0.1*difficultyScalar;
-    e.y += dy/len * dt*0.1*difficultyScalar;
+    const speed = (e.slow>0?0.05:0.1) * difficultyScalar;
+    e.x += dx/len * dt*speed;
+    e.y += dy/len * dt*speed;
+    if(e.burn>0){ e.hp -= dt*0.005; e.burn-=dt; }
+    if(e.slow>0) e.slow-=dt;
   });
 }
 
@@ -133,9 +159,15 @@ function collisions(){
       if(e.dead) return;
       if(distSq(b,e)<(b.r+e.r)**2){
         e.hp-=b.damage;
+        if(b.element==='fire') e.burn=3000;
+        if(b.element==='slow') e.slow=2000;
+        if(b.element==='chain'){
+          const other=enemies.find(o=>!o.dead&&o!==e&&distSq(o,e)<40000);
+          if(other) other.hp-=b.damage*0.5;
+        }
         b.dead=true;
         if(e.hp<=0){
-          loot.push({x:e.x,y:e.y,r:10,char:'✦',hue:e.hue,t:0});
+          alloc(loot,{x:e.x,y:e.y,r:10,char:'✦',hue:e.hue,t:0});
           player.xp+=1;
           if(e.boss) glitchReward();
         }
