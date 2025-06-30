@@ -115,6 +115,12 @@ let camX = 0, camY = 0;
 let damageFlash = 0;
 let joyX = 0, joyY = 0;
 const keys = {};
+let glitchEventActive=false;
+let glitchEventTimer=0;
+let glitchAudioCtx=null;
+let expectedDPS=10;
+let maxGlyphSlots=8;
+let penaltyFireRate=1;
 
 // helpers
 const rand = n => Math.floor(Math.random()*n);
@@ -185,7 +191,7 @@ function randomGlyph() {
 function addGlyph(g) {
   const same = player.glyphs.find(o=>o.char===g.char && o.hue===g.hue);
   if (same) same.level++;
-  else if (player.glyphs.length < 8) player.glyphs.push(g);
+  else if (player.glyphs.length < maxGlyphSlots) player.glyphs.push(g);
 }
 
 function fireBullet(x,y,angle,hue,level){
@@ -231,6 +237,53 @@ function spawnGlitchBoss(){
   alloc(enemies,{x:camX+width/2,y:camY-40,r:24,hp:200,char:'Ω',hue:320,boss:true});
   glitchCountdown = 10000; // 10s of FX
 }
+function startGlitchEvent(){
+  if(glitchEventActive) return;
+  glitchEventActive=true;
+  glitchEventTimer=15000;
+  glitchCountdown=glitchEventTimer;
+  document.body.classList.add("glitch-event");
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(AC){
+    glitchAudioCtx=new AC();
+    const osc=glitchAudioCtx.createOscillator();
+    const crusher=glitchAudioCtx.createWaveShaper();
+    crusher.curve=new Float32Array([-1,-0.5,0,0.5,1]);
+    const gain=glitchAudioCtx.createGain();
+    osc.type="square";
+    osc.frequency.value=120;
+    osc.connect(crusher);
+    crusher.connect(gain);
+    gain.gain.value=0.2;
+    gain.connect(glitchAudioCtx.destination);
+    osc.start();
+    glitchAudioCtx.osc=osc;
+  }
+  for(let i=0;i<5;i++){
+    const x=camX+rand(width);
+    const y=camY+rand(height);
+    alloc(enemies,{x,y,r:12,hp:40,char:"\u03A8",hue:rand(360),phantom:true,invul:true});
+  }
+}
+
+function endGlitchEvent(success){
+  document.body.classList.remove("glitch-event");
+  glitchEventActive=false;
+  glitchCountdown=0;
+  if(glitchAudioCtx){
+    glitchAudioCtx.osc.stop();
+    glitchAudioCtx.close();
+    glitchAudioCtx=null;
+  }
+  enemies.forEach(e=>{ if(e.phantom) e.dead=true; });
+  if(success){
+    const g=randomGlyph();
+    g.broken=true;
+    addGlyph(g);
+  }else{
+    localStorage.setItem("penalty","1");
+  }
+}
 
 function glitchReward(){
   if(Math.random()<0.5){
@@ -264,7 +317,7 @@ function updateGlyphs(dt){
     g.cd = (g.cd||0) - dt;
     if(g.cd<=0){
       fireBullet(gx,gy,g.angle,g.hue,g.level);
-      g.cd = g.broken ? 0 : 1000 / g.level;
+      g.cd = g.broken ? 0 : 1000 / g.level * penaltyFireRate;
     }
   });
 }
@@ -367,7 +420,7 @@ function collisions(){
       return;
     }
     enemies.forEach(e=>{
-      if(e.dead) return;
+      if(e.dead||e.invul) return;
       if(distSq(b,e)<(b.r+e.r)**2){
         e.hp-=b.damage;
         if(b.element==='fire') e.burn=3000;
@@ -437,6 +490,7 @@ let diffTimer = 0;
 function calcDifficulty(dt){
   diffTimer += dt;
   const expDPS = difficultyScalar*10;
+expectedDPS = expDPS;
   player.dps = player.glyphs.length*10;
   if(diffTimer>=10000){
     diffTimer=0;
@@ -447,7 +501,7 @@ function calcDifficulty(dt){
     highDpsTime += dt;
     if(highDpsTime>60000 && glitchCountdown===0){
       if(Math.random()<0.3){
-        spawnGlitchBoss();
+        startGlitchEvent();
         highDpsTime=0;
       }
     }
@@ -456,6 +510,14 @@ function calcDifficulty(dt){
 
 function update(dt){
   timeSurvived += dt/1000;
+  if(glitchEventActive){
+    glitchEventTimer-=dt;
+    if(player.dps<=expectedDPS*1.2){
+      enemies.forEach(e=>{ if(e.phantom) e.invul=false; });
+    }
+    if(!enemies.some(e=>!e.dead && e.phantom)) endGlitchEvent(true);
+    else if(glitchEventTimer<=0) endGlitchEvent(false);
+  }
   if(breakTimer>0){
     breakTimer -= dt;
     if(breakTimer<=0) staticEl.style.display='none';
@@ -558,6 +620,20 @@ function startGame(){
   glyphsEl.textContent='';
   levelEl.textContent='LVL 1';
   running=true;
+  const p=localStorage.getItem("penalty");
+  if(p){
+    maxGlyphSlots=7;
+    penaltyFireRate=1.5;
+    localStorage.removeItem("penalty");
+  }else{
+    maxGlyphSlots=8;
+    penaltyFireRate=1;
+  }
+  document.body.classList.remove("glitch-event");
+  if(glitchAudioCtx){glitchAudioCtx.osc.stop();glitchAudioCtx.close();glitchAudioCtx=null;}
+
+  glitchEventActive=false;
+
   last=0;
   rafId=requestAnimationFrame(loop);
 }
@@ -574,7 +650,7 @@ canvas.addEventListener('touchend',e=>{
   loot.forEach(l=>{ if(!l.dead && distSq(l,{x:t.clientX+camX,y:t.clientY+camY})<400){ collectLoot(l); } });
 });
 
-glitchBtn.addEventListener('click',spawnGlitchBoss);
+glitchBtn.addEventListener('click',startGlitchEvent);
 startEl.addEventListener('click',startGame);
 restartBtn.addEventListener('click',startGame);
 
