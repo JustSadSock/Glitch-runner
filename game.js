@@ -715,7 +715,7 @@ function gameOver(){
 canvas.addEventListener('touchend',e=>{
   const t=e.changedTouches[0];
   loot.forEach(l=>{ if(!l.dead && distSq(l,{x:t.clientX+camX,y:t.clientY+camY})<400){ collectLoot(l); } });
-});
+},{passive:true});
 
 glitchBtn.addEventListener('click',startGlitchEvent);
 startEl.addEventListener('click',startGame);
@@ -744,7 +744,7 @@ document.addEventListener('keyup',e=>{ keys[e.key]=false; });
 let joyTouch=null;
 joystickEl.addEventListener('touchstart',e=>{
   joyTouch=e.touches[0].identifier;
-});
+},{passive:true});
 joystickEl.addEventListener('touchmove',e=>{
   const t=[...e.touches].find(t=>t.identifier===joyTouch);
   if(!t) return;
@@ -757,13 +757,13 @@ joystickEl.addEventListener('touchmove',e=>{
   joyX=clamp(dx/max,-1,1);
   joyY=clamp(dy/max,-1,1);
   stickEl.style.transform=`translate(${joyX*20}px,${joyY*20}px)`;
-});
+},{passive:true});
 joystickEl.addEventListener('touchend',e=>{
   joyTouch=null; joyX=0; joyY=0; stickEl.style.transform='translate(0,0)';
-});
+},{passive:true});
 joystickEl.addEventListener('touchcancel',e=>{
   joyTouch=null; joyX=0; joyY=0; stickEl.style.transform='translate(0,0)';
-});
+},{passive:true});
 
 canvas.addEventListener('click',e=>{
   loot.forEach(l=>{ if(!l.dead && distSq(l,{x:e.clientX+camX,y:e.clientY+camY})<400){ collectLoot(l); } });
