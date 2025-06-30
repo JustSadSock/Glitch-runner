@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
   <title>GLITCH RUNNER</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -29,5 +30,12 @@
   <div id="static-overlay" hidden></div>
   <div id="joystick"><div id="stick"></div></div>
   <script type="module" src="game.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js');
+      });
+    }
+  </script>
 </body>
 </html>
