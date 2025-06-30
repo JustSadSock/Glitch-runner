@@ -24,19 +24,23 @@ const joystickEl = document.getElementById('joystick');
 const stickEl = document.getElementById('stick');
 const waveEl = document.getElementById('wave');
 const staticEl = document.getElementById('static-overlay');
+const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 const devMode = new URLSearchParams(location.search).get('dev') === '1';
 if (devMode) glitchBtn.hidden = false;
+if (!isMobile) joystickEl.style.display = 'none';
 
-// lock to portrait when possible
-if (screen.orientation && screen.orientation.lock) {
-  screen.orientation.lock('portrait').catch(() => {});
-}
-
-const orientationMedia = window.matchMedia
-  ? window.matchMedia('(orientation: portrait)')
-  : null;
-if (orientationMedia && orientationMedia.addEventListener) {
-  orientationMedia.addEventListener('change', checkOrientation);
+// lock to portrait on mobile when possible
+let orientationMedia = null;
+if (isMobile) {
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('portrait').catch(() => {});
+  }
+  orientationMedia = window.matchMedia
+    ? window.matchMedia('(orientation: portrait)')
+    : null;
+  if (orientationMedia && orientationMedia.addEventListener) {
+    orientationMedia.addEventListener('change', checkOrientation);
+  }
 }
 
 function isPortrait() {
@@ -48,6 +52,10 @@ function isPortrait() {
 }
 
 function checkOrientation() {
+  if (!isMobile) {
+    rotateWarningEl.hidden = true;
+    return;
+  }
   rotateWarningEl.hidden = isPortrait();
 }
 
@@ -62,7 +70,7 @@ function resize() {
   checkOrientation();
 }
 window.addEventListener('resize', resize);
-window.addEventListener('orientationchange', checkOrientation);
+if (isMobile) window.addEventListener('orientationchange', checkOrientation);
 resize();
 
 // ==== game state =====
@@ -573,6 +581,11 @@ restartBtn.addEventListener('click',startGame);
 document.addEventListener('keydown',e=>{
   keys[e.key]=true;
   if(e.key==='Enter' && !running) startGame();
+  if(e.key===' ' && running) {
+    loot.forEach(l=>{
+      if(!l.dead && distSq(l,player)<400) collectLoot(l);
+    });
+  }
 });
 document.addEventListener('keyup',e=>{ keys[e.key]=false; });
 

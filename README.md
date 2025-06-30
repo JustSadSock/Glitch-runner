@@ -10,8 +10,8 @@ For the complete game specification see [aboutthegame.txt](aboutthegame.txt).
 
 ## Controls
 - Swipe or use WASD/arrow keys to move the player.
-- Tap/click loot symbols to pick them up.
-- When HP reaches zero a restart button will appear.
+- Tap/click loot symbols or press the SPACE key to pick them up on desktop.
+- When HP reaches zero a restart button will appear. Press Enter to start a new run.
 
 GLITCH RUNNER — это портретный, бесконечный браузер-рогалик, выглядящий как взломанный кассетный автомат, который сыпет неоном и цифровым хаосом. Вид сверху: ты — крошечный белый круг-курсор, скользящий по бездонной сетке процедурно зашитого мегаполиса. Город сам рождается из патчей: квартире-битовые блоки, туннели-шины, площади-матрицы — всё стыкуется на лету по шумовому сиду, поэтому знакомых улиц не бывает даже в одном забеге. Управление предельно голое: один стик или свайп двигает игрока, вторая рука свободна — стрельба, подбор лута и все спецэффекты происходят автоматом в направлении движения камеры, никаких дополнительных кнопок и HUD-меню, только крошечный счётчик волн в углу, который тает, когда экран начинает глючить.
 
