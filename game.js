@@ -287,8 +287,10 @@ function calcDifficulty(dt){
   if(player.dps>1.4*expDPS){
     highDpsTime += dt;
     if(highDpsTime>60000 && glitchCountdown===0){
-      spawnGlitchBoss();
-      highDpsTime=0;
+      if(Math.random()<0.3){
+        spawnGlitchBoss();
+        highDpsTime=0;
+      }
     }
   } else highDpsTime = Math.max(0,highDpsTime-dt);
 }
