@@ -24,24 +24,29 @@ const joystickEl = document.getElementById('joystick');
 const stickEl = document.getElementById('stick');
 const devMode = new URLSearchParams(location.search).get('dev') === '1';
 if (devMode) glitchBtn.hidden = false;
-let orientationLockFailed = false;
-// try locking to portrait
+
+// lock to portrait when possible
 if (screen.orientation && screen.orientation.lock) {
-  screen.orientation.lock('portrait').catch(() => {
-    orientationLockFailed = true;
-    checkOrientation();
-  });
-} else {
-  orientationLockFailed = true;
+  screen.orientation.lock('portrait').catch(() => {});
+}
+
+const orientationMedia = window.matchMedia
+  ? window.matchMedia('(orientation: portrait)')
+  : null;
+if (orientationMedia && orientationMedia.addEventListener) {
+  orientationMedia.addEventListener('change', checkOrientation);
+}
+
+function isPortrait() {
+  if (screen.orientation && screen.orientation.type) {
+    return screen.orientation.type.startsWith('portrait');
+  }
+  if (orientationMedia) return orientationMedia.matches;
+  return window.innerHeight >= window.innerWidth;
 }
 
 function checkOrientation() {
-  if (!orientationLockFailed) return;
-  if (window.innerWidth > window.innerHeight) {
-    rotateWarningEl.hidden = false;
-  } else {
-    rotateWarningEl.hidden = true;
-  }
+  rotateWarningEl.hidden = isPortrait();
 }
 
 function resize() {
