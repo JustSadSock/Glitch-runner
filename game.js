@@ -20,6 +20,8 @@ const restartBtn = document.getElementById('restart');
 const glyphsEl = document.getElementById('glyphs');
 const glitchBtn = document.getElementById('force-glitch');
 const rotateWarningEl = document.getElementById('rotate-warning');
+const joystickEl = document.getElementById('joystick');
+const stickEl = document.getElementById('stick');
 const devMode = new URLSearchParams(location.search).get('dev') === '1';
 if (devMode) glitchBtn.hidden = false;
 let orientationLockFailed = false;
@@ -78,6 +80,8 @@ let running = false;
 let rafId = 0;
 let camX = 0, camY = 0;
 let damageFlash = 0;
+let joyX = 0, joyY = 0;
+const keys = {};
 
 // helpers
 const rand = n => Math.floor(Math.random()*n);
@@ -317,6 +321,14 @@ function update(dt){
   timeSurvived += dt/1000;
   lastSpawn += dt;
   if(lastSpawn>6000){ spawnWave(); lastSpawn=0; }
+  const kx = (keys['ArrowRight']||keys['d']?1:0) - (keys['ArrowLeft']||keys['a']?1:0);
+  const ky = (keys['ArrowDown']||keys['s']?1:0) - (keys['ArrowUp']||keys['w']?1:0);
+  const moveX = clamp(kx + joyX,-1,1);
+  const moveY = clamp(ky + joyY,-1,1);
+  camX += moveX * player.speed * dt * 0.2;
+  camY += moveY * player.speed * dt * 0.2;
+  player.x = camX + width/2;
+  player.y = camY + height/2;
   updateGlyphs(dt);
   updateBullets(dt);
   updateEnemies(dt);
@@ -325,8 +337,6 @@ function update(dt){
   calcDifficulty(dt);
   if(glitchCountdown>0) glitchCountdown -= dt;
   if(damageFlash>0) damageFlash -= dt;
-  camX = player.x - width/2;
-  camY = player.y - height/2;
 }
 
 function drawBackground(){
@@ -391,7 +401,10 @@ function startGame(){
   if(running) return;
   startEl.hidden=true;
   overEl.hidden=true;
-  player.x=0;player.y=0;player.hp=100;player.xp=0;playerLevel=1;
+  camX=-width/2; camY=-height/2;
+  player.x=camX+width/2; player.y=camY+height/2;
+  player.hp=100;player.xp=0;playerLevel=1;
+  joyX=joyY=0; stickEl.style.transform='translate(0,0)';
   enemies.length=0;bullets.length=0;loot.length=0;obstacles.length=0;
   for(const k in chunks) delete chunks[k];
   timeSurvived=0;glitchCountdown=0;lastSpawn=0;
@@ -408,25 +421,10 @@ function gameOver(){
   overEl.hidden=false;
 }
 
-// touch controls: swipe move, tap loot
-let touchStart=null;
-canvas.addEventListener('touchstart',e=>{
-  const t=e.touches[0];
-  touchStart={x:t.clientX,y:t.clientY};
-});
+// touch tap loot
 canvas.addEventListener('touchend',e=>{
-  if(!touchStart) return;
   const t=e.changedTouches[0];
-  const dx=t.clientX-touchStart.x;
-  const dy=t.clientY-touchStart.y;
-  const len=Math.hypot(dx,dy);
-  if(len<10){ // tap
-    loot.forEach(l=>{ if(!l.dead && distSq(l,{x:t.clientX,y:t.clientY})<400){ collectLoot(l); } });
-  } else {
-    player.x+=Math.sign(dx)*player.speed*100;
-    player.y+=Math.sign(dy)*player.speed*100;
-  }
-  touchStart=null;
+  loot.forEach(l=>{ if(!l.dead && distSq(l,{x:t.clientX+camX,y:t.clientY+camY})<400){ collectLoot(l); } });
 });
 
 glitchBtn.addEventListener('click',spawnGlitchBoss);
@@ -434,12 +432,34 @@ startEl.addEventListener('click',startGame);
 restartBtn.addEventListener('click',startGame);
 
 document.addEventListener('keydown',e=>{
-  const step = player.speed*100;
-  if(e.key==='ArrowUp'||e.key==='w') player.y-=step;
-  if(e.key==='ArrowDown'||e.key==='s') player.y+=step;
-  if(e.key==='ArrowLeft'||e.key==='a') player.x-=step;
-  if(e.key==='ArrowRight'||e.key==='d') player.x+=step;
+  keys[e.key]=true;
   if(e.key==='Enter' && !running) startGame();
+});
+document.addEventListener('keyup',e=>{ keys[e.key]=false; });
+
+// joystick controls
+let joyTouch=null;
+joystickEl.addEventListener('touchstart',e=>{
+  joyTouch=e.touches[0].identifier;
+});
+joystickEl.addEventListener('touchmove',e=>{
+  const t=[...e.touches].find(t=>t.identifier===joyTouch);
+  if(!t) return;
+  const rect=joystickEl.getBoundingClientRect();
+  const cx=rect.left+rect.width/2;
+  const cy=rect.top+rect.height/2;
+  const dx=t.clientX-cx;
+  const dy=t.clientY-cy;
+  const max=rect.width/2;
+  joyX=clamp(dx/max,-1,1);
+  joyY=clamp(dy/max,-1,1);
+  stickEl.style.transform=`translate(${joyX*20}px,${joyY*20}px)`;
+});
+joystickEl.addEventListener('touchend',e=>{
+  joyTouch=null; joyX=0; joyY=0; stickEl.style.transform='translate(0,0)';
+});
+joystickEl.addEventListener('touchcancel',e=>{
+  joyTouch=null; joyX=0; joyY=0; stickEl.style.transform='translate(0,0)';
 });
 
 canvas.addEventListener('click',e=>{

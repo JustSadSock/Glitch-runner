@@ -82,3 +82,26 @@ body {
   color: #fff;
   text-align: center;
 }
+
+#joystick {
+  position: fixed;
+  bottom: 40px;
+  left: 40px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#stick {
+  position: absolute;
+  left: 25px;
+  top: 25px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  transition: transform 0.1s;
+}
